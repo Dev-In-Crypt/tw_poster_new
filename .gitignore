@@ -1,0 +1,24 @@
+# Secrets
+.env
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+
+# Data (SQLite DB)
+data/bot.db
+
+# Temp images
+*.png
+*.jpg
+*.jpeg
+
+# Virtual env
+venv/
+.venv/
+env/
+
+# Docker
+*.log
