@@ -39,17 +39,7 @@ async def run_pipeline(
         recent_topics=recent_topics,
     )
 
-    if dry_run:
-        return {
-            "status": "dry_run",
-            "topic": topic,
-            "style": style,
-            "num_tweets": len(tweets),
-            "tweets": tweets,
-        }
-
     image_provider = get_image_provider()
-    publisher = TwitterPublisher()
 
     image_path = None
     try:
@@ -57,7 +47,19 @@ async def run_pipeline(
         image_path = await image_provider.generate(img_prompt)
         logger.info(f"Image generated: {image_path}")
     except Exception as e:
-        logger.warning(f"Image generation failed, posting without: {e}")
+        logger.warning(f"Image generation failed: {e}")
+
+    if dry_run:
+        return {
+            "status": "dry_run",
+            "topic": topic,
+            "style": style,
+            "num_tweets": len(tweets),
+            "tweets": tweets,
+            "image_path": image_path,
+        }
+
+    publisher = TwitterPublisher()
 
     thread_id = db.save_thread(topic, style, tweets, image_path)
 

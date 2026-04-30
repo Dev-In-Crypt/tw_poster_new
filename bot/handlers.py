@@ -12,6 +12,7 @@ from bot.keyboards import main_menu_keyboard, style_keyboard, confirm_keyboard
 from pipeline import run_pipeline
 from storage.database import Database
 from config import Config
+from utils import compress_image
 
 logger = logging.getLogger(__name__)
 
@@ -92,14 +93,39 @@ async def receive_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     if result["status"] == "dry_run":
-        await query.edit_message_text(
+        text = (
             f"👁 *Preview (not posted)*\n\n"
             f"Topic: {result['topic']}\n"
             f"Style: {result['style']}\n"
             f"Tweets: {result['num_tweets']}\n\n"
-            f"{tweets_preview}",
-            parse_mode="Markdown",
+            f"{tweets_preview}"
         )
+        image_path = result.get("image_path")
+        if image_path:
+            import os
+            await query.edit_message_text("👁 Preview ready, sending...")
+            compressed = compress_image(image_path)
+            try:
+                with open(compressed, "rb") as img:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=img,
+                        caption=f"👁 *Preview* — {result['topic']}",
+                        parse_mode="Markdown",
+                        read_timeout=60,
+                        write_timeout=60,
+                        connect_timeout=30,
+                    )
+            finally:
+                os.unlink(image_path)
+                os.unlink(compressed)
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=text,
+                parse_mode="Markdown",
+            )
+        else:
+            await query.edit_message_text(text, parse_mode="Markdown")
     elif result["status"] == "posted":
         await query.edit_message_text(
             f"✅ Thread posted!\n\n"
@@ -133,12 +159,36 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         tweets_preview = "\n\n".join(
             f"{i+1}. {t}" for i, t in enumerate(result["tweets"])
         )
-        await query.edit_message_text(
+        text = (
             f"👁 Preview (not posted)\n\n"
             f"Topic: {result['topic']}\n"
             f"Style: {result['style']}\n\n"
-            f"{tweets_preview}",
+            f"{tweets_preview}"
         )
+        image_path = result.get("image_path")
+        if image_path:
+            import os
+            await query.edit_message_text("👁 Preview ready, sending...")
+            compressed = compress_image(image_path)
+            try:
+                with open(compressed, "rb") as img:
+                    await context.bot.send_photo(
+                        chat_id=query.message.chat_id,
+                        photo=img,
+                        caption=f"👁 {result['topic']}",
+                        read_timeout=60,
+                        write_timeout=60,
+                        connect_timeout=30,
+                    )
+            finally:
+                os.unlink(image_path)
+                os.unlink(compressed)
+            await context.bot.send_message(
+                chat_id=query.message.chat_id,
+                text=text,
+            )
+        else:
+            await query.edit_message_text(text)
 
     elif query.data == "post_auto":
         await query.edit_message_text("⏳ Generating thread (auto topic)...")
