@@ -4,6 +4,8 @@ def main_menu_keyboard() -> InlineKeyboardMarkup:
     return InlineKeyboardMarkup([
         [InlineKeyboardButton("🚀 Post Now (auto topic)", callback_data="post_auto")],
         [InlineKeyboardButton("✍️ Post with topic", callback_data="post_manual")],
+        [InlineKeyboardButton("👁 Preview auto topic", callback_data="preview_auto")],
+        [InlineKeyboardButton("👁 Preview with topic", callback_data="preview_manual")],
         [InlineKeyboardButton("📋 Queue", callback_data="show_queue")],
         [InlineKeyboardButton("⏰ Schedule", callback_data="show_schedule")],
         [InlineKeyboardButton("📊 History", callback_data="show_history")],

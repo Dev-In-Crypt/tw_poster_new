@@ -54,11 +54,40 @@ class ThreadGenerator:
         tweets = json.loads(content)
         validated = []
         for t in tweets:
-            if len(t) > 280:
-                t = t[:277] + "..."
+            if len(t) > 250:
+                t = await self._shorten_tweet(t)
             validated.append(t)
 
         return validated
+
+    async def _shorten_tweet(self, tweet: str) -> str:
+        """Ask the model to shorten a tweet to under 250 chars while preserving meaning."""
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                self.api_url,
+                headers=self.headers,
+                json={
+                    "model": self.model,
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": (
+                                f"Shorten this tweet to under 250 characters (including spaces and punctuation) "
+                                f"while preserving its meaning. Return ONLY the shortened tweet text, nothing else.\n\n"
+                                f"Tweet: {tweet}"
+                            ),
+                        }
+                    ],
+                    "temperature": 0.3,
+                    "max_tokens": 200,
+                },
+            )
+            resp.raise_for_status()
+        result = resp.json()["choices"][0]["message"]["content"].strip()
+        # Hard fallback if model still returns too long
+        if len(result) > 250:
+            result = result[:247].rsplit(" ", 1)[0] + "..."
+        return result
 
     async def generate_image_prompt(self, topic: str) -> str:
         async with httpx.AsyncClient(timeout=30) as client:

@@ -20,6 +20,7 @@ class Config:
 
     # Image
     IMAGE_PROVIDER = os.getenv("IMAGE_PROVIDER", "openai")
+    IMAGE_MODEL = os.getenv("IMAGE_MODEL", "google/gemini-2.5-flash-image")
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
     REPLICATE_API_TOKEN = os.getenv("REPLICATE_API_TOKEN", "")
 

@@ -39,6 +39,25 @@ async def cmd_post(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return WAITING_TOPIC
 
 
+async def cmd_post_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not _is_admin(query.from_user.id):
+        return ConversationHandler.END
+    await query.edit_message_text("📝 Send me the topic for the thread:")
+    return WAITING_TOPIC
+
+
+async def cmd_preview_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    await query.answer()
+    if not _is_admin(query.from_user.id):
+        return ConversationHandler.END
+    context.user_data["dry_run"] = True
+    await query.edit_message_text("👁 Preview mode — send me the topic (won't post to Twitter):")
+    return WAITING_TOPIC
+
+
 async def receive_topic(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["pending_topic"] = update.message.text
     await update.message.reply_text(
@@ -65,12 +84,23 @@ async def receive_style(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
     db = context.bot_data["db"]
-    result = await run_pipeline(db, topic=topic, style=style)
+    dry_run = context.user_data.pop("dry_run", False)
+    result = await run_pipeline(db, topic=topic, style=style, dry_run=dry_run)
 
-    if result["status"] == "posted":
-        tweets_preview = "\n\n".join(
-            f"*{i+1}.* {t}" for i, t in enumerate(result["tweets"])
+    tweets_preview = "\n\n".join(
+        f"*{i+1}.* {t}" for i, t in enumerate(result["tweets"])
+    )
+
+    if result["status"] == "dry_run":
+        await query.edit_message_text(
+            f"👁 *Preview (not posted)*\n\n"
+            f"Topic: {result['topic']}\n"
+            f"Style: {result['style']}\n"
+            f"Tweets: {result['num_tweets']}\n\n"
+            f"{tweets_preview}",
+            parse_mode="Markdown",
         )
+    elif result["status"] == "posted":
         await query.edit_message_text(
             f"✅ Thread posted!\n\n"
             f"Topic: {result['topic']}\n"
@@ -96,7 +126,21 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not _is_admin(query.from_user.id):
         return
 
-    if query.data == "post_auto":
+    if query.data == "preview_auto":
+        await query.edit_message_text("⏳ Generating preview (auto topic, no posting)...")
+        db = context.bot_data["db"]
+        result = await run_pipeline(db, dry_run=True)
+        tweets_preview = "\n\n".join(
+            f"{i+1}. {t}" for i, t in enumerate(result["tweets"])
+        )
+        await query.edit_message_text(
+            f"👁 Preview (not posted)\n\n"
+            f"Topic: {result['topic']}\n"
+            f"Style: {result['style']}\n\n"
+            f"{tweets_preview}",
+        )
+
+    elif query.data == "post_auto":
         await query.edit_message_text("⏳ Generating thread (auto topic)...")
         db = context.bot_data["db"]
         result = await run_pipeline(db)
@@ -156,7 +200,11 @@ async def callback_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 def setup_handlers(app):
     conv_handler = ConversationHandler(
-        entry_points=[CommandHandler("post", cmd_post)],
+        entry_points=[
+            CommandHandler("post", cmd_post),
+            CallbackQueryHandler(cmd_post_callback, pattern="^post_manual$"),
+            CallbackQueryHandler(cmd_preview_callback, pattern="^preview_manual$"),
+        ],
         states={
             WAITING_TOPIC: [
                 MessageHandler(filters.TEXT & ~filters.COMMAND, receive_topic)
@@ -166,6 +214,7 @@ def setup_handlers(app):
             ],
         },
         fallbacks=[CommandHandler("cancel", cmd_start)],
+        per_message=False,
     )
 
     app.add_handler(CommandHandler("start", cmd_start))

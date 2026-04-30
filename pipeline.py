@@ -18,11 +18,11 @@ async def run_pipeline(
     topic: str | None = None,
     style: str | None = None,
     num_tweets: int = 7,
+    dry_run: bool = False,
 ) -> dict:
-    """Full pipeline: topic → generate → image → post → save."""
+    """Full pipeline: topic → generate → image → post → save.
+    dry_run=True skips Twitter posting and image generation."""
     generator = ThreadGenerator()
-    image_provider = get_image_provider()
-    publisher = TwitterPublisher()
 
     if topic is None:
         topic = await _pick_auto_topic(generator, db)
@@ -32,12 +32,24 @@ async def run_pipeline(
 
     recent_topics = db.get_recent_topics(30)
 
-    logger.info(f"Generating thread: topic='{topic}', style='{style}'")
+    logger.info(f"Generating thread: topic='{topic}', style='{style}', dry_run={dry_run}")
 
     tweets = await generator.generate_thread(
         topic=topic, style=style, num_tweets=num_tweets,
         recent_topics=recent_topics,
     )
+
+    if dry_run:
+        return {
+            "status": "dry_run",
+            "topic": topic,
+            "style": style,
+            "num_tweets": len(tweets),
+            "tweets": tweets,
+        }
+
+    image_provider = get_image_provider()
+    publisher = TwitterPublisher()
 
     image_path = None
     try:
